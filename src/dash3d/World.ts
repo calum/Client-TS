@@ -117,7 +117,12 @@ export default class World {
     static viewRadius: number = 25;
     static drawDistance: number = 3500;
 
-    private static visBacking: boolean[][][][] = new TypedArray4d(8, 32, World.viewRadius * 2 + 1, World.viewRadius * 2 + 1, false);
+    // custom: camera pitch range the visibility table covers (upstream 128..383).
+    // 32 is about 6 degrees above level, 480 about 84 degrees (nearly straight down).
+    static minPitch: number = 32;
+    static maxPitch: number = 480;
+
+    private static visBacking: boolean[][][][] = new TypedArray4d(World.visSampleCount() - 1, 32, World.viewRadius * 2 + 1, World.viewRadius * 2 + 1, false);
     private static visBackingDirty: boolean[][] | null = null;
 
     static numActiveOccluders: number = 0;
@@ -859,6 +864,20 @@ export default class World {
         }
     }
 
+    // custom: which visibility table level a camera pitch uses
+    static visPitchLevel(pitch: number): number {
+        return ((pitch - World.minPitch) / 32) | 0;
+    }
+
+    static visLevelCount(): number {
+        return World.visBacking.length;
+    }
+
+    // custom: how many pitch samples (and pitchDistance entries) resetVisCalc needs
+    static visSampleCount(): number {
+        return World.visPitchLevel(World.maxPitch) + 2;
+    }
+
     // custom: changes the render radius; call resetVisCalc afterwards
     static setViewRadius(radius: number): void {
         World.viewRadius = radius;
@@ -874,16 +893,18 @@ export default class World {
         this.xOrig = (viewportWidth / 2) | 0;
         this.yOrig = (viewportHeight / 2) | 0;
 
-        this.visBacking = new TypedArray4d(8, 32, World.viewRadius * 2 + 1, World.viewRadius * 2 + 1, false); // custom: sized for the radius
-        const visBacking: boolean[][][][] = new TypedArray4d(9, 32, World.viewRadius * 2 + 3, World.viewRadius * 2 + 3, false);
-        for (let pitch: number = 128; pitch <= 384; pitch += 32) {
+        // custom: sized for the radius and the pitch range
+        const samples: number = World.visSampleCount();
+        this.visBacking = new TypedArray4d(samples - 1, 32, World.viewRadius * 2 + 1, World.viewRadius * 2 + 1, false);
+        const visBacking: boolean[][][][] = new TypedArray4d(samples, 32, World.viewRadius * 2 + 3, World.viewRadius * 2 + 3, false);
+        for (let pitch: number = World.minPitch; pitch < World.minPitch + samples * 32; pitch += 32) {
             for (let yaw: number = 0; yaw < 2048; yaw += 64) {
                 this.cameraSinX = Pix3D.sinTable[pitch];
                 this.cameraCosX = Pix3D.cosTable[pitch];
                 this.cameraSinY = Pix3D.sinTable[yaw];
                 this.cameraCosY = Pix3D.cosTable[yaw];
 
-                const pitchLevel: number = ((pitch - 128) / 32) | 0;
+                const pitchLevel: number = World.visPitchLevel(pitch);
                 const yawLevel: number = (yaw / 64) | 0;
                 for (let dx: number = -(World.viewRadius + 1); dx <= World.viewRadius + 1; dx++) {
                     for (let dz: number = -(World.viewRadius + 1); dz <= World.viewRadius + 1; dz++) {
@@ -904,7 +925,7 @@ export default class World {
             }
         }
 
-        for (let pitchLevel: number = 0; pitchLevel < 8; pitchLevel++) {
+        for (let pitchLevel: number = 0; pitchLevel < samples - 1; pitchLevel++) {
             for (let yawLevel: number = 0; yawLevel < 32; yawLevel++) {
                 for (let x: number = -World.viewRadius; x < World.viewRadius; x++) {
                     for (let z: number = -World.viewRadius; z < World.viewRadius; z++) {
@@ -983,7 +1004,7 @@ export default class World {
         World.cameraSinY = Pix3D.sinTable[eyeYaw];
         World.cameraCosY = Pix3D.cosTable[eyeYaw];
 
-        World.visBackingDirty = World.visBacking[((eyePitch - 128) / 32) | 0][(eyeYaw / 64) | 0];
+        World.visBackingDirty = World.visBacking[World.visPitchLevel(eyePitch)][(eyeYaw / 64) | 0];
         World.cx = eyeX;
         World.cy = eyeY;
         World.cz = eyeZ;

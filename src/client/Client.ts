@@ -3241,9 +3241,9 @@ export class Client extends GameShell {
 
     // custom: the visibility table depends on the camera distance, so it is rebuilt for the current zoom
     private resetVisCalc(): void {
-        const distance: Int32Array = new Int32Array(9);
-        for (let x: number = 0; x < 9; x++) {
-            const angle: number = x * 32 + 128 + 15;
+        const distance: Int32Array = new Int32Array(World.visSampleCount());
+        for (let x: number = 0; x < distance.length; x++) {
+            const angle: number = x * 32 + World.minPitch + 15;
             const offset: number = ((angle * 3 + 600) * this.cameraZoom) >> 8;
             const sin: number = Pix3D.sinTable[angle];
             distance[x] = (offset * sin) >> 16;
@@ -3298,10 +3298,11 @@ export class Client extends GameShell {
         this.orbitCameraYaw = ((this.orbitCameraYaw + this.orbitCameraYawVelocity / 2) | 0) & 0x7ff;
         this.orbitCameraPitch += (this.orbitCameraPitchVelocity / 2) | 0;
 
-        if (this.orbitCameraPitch < 128) {
-            this.orbitCameraPitch = 128;
-        } else if (this.orbitCameraPitch > 383) {
-            this.orbitCameraPitch = 383;
+        // custom: wider pitch range (upstream 128..383)
+        if (this.orbitCameraPitch < World.minPitch) {
+            this.orbitCameraPitch = World.minPitch;
+        } else if (this.orbitCameraPitch > World.maxPitch) {
+            this.orbitCameraPitch = World.maxPitch;
         }
 
         const orbitTileX: number = this.orbitCameraX >> 7;
@@ -3330,8 +3331,8 @@ export class Client extends GameShell {
         let clamp: number = maxY * 192;
         if (clamp > 98048) {
             clamp = 98048;
-        } else if (clamp < 32768) {
-            clamp = 32768;
+        } else if (clamp < World.minPitch * 256) {
+            clamp = World.minPitch * 256; // custom: upstream 32768 (pitch 128)
         }
 
         if (clamp > this.cameraPitchClamp) {
@@ -4264,12 +4265,12 @@ export class Client extends GameShell {
             } else if (axis === 4) {
                 this.camPitch += jitter;
 
-                if (this.camPitch < 128) {
-                    this.camPitch = 128;
+                if (this.camPitch < World.minPitch) {
+                    this.camPitch = World.minPitch;
                 }
 
-                if (this.camPitch > 383) {
-                    this.camPitch = 383;
+                if (this.camPitch > World.maxPitch) {
+                    this.camPitch = World.maxPitch;
                 }
             }
         }
@@ -11755,10 +11756,11 @@ export class Client extends GameShell {
         // same directions as the touchscreen panning below: drag right turns like the left arrow, drag up like the down arrow
         this.orbitCameraYaw = (this.orbitCameraYaw - dx * 2) & 0x7ff;
         this.orbitCameraPitch += dy;
-        if (this.orbitCameraPitch < 128) {
-            this.orbitCameraPitch = 128;
-        } else if (this.orbitCameraPitch > 383) {
-            this.orbitCameraPitch = 383;
+        // custom: wider pitch range (upstream 128..383)
+        if (this.orbitCameraPitch < World.minPitch) {
+            this.orbitCameraPitch = World.minPitch;
+        } else if (this.orbitCameraPitch > World.maxPitch) {
+            this.orbitCameraPitch = World.maxPitch;
         }
         this.sendCamera = true;
     }
