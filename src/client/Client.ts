@@ -71,6 +71,7 @@ import WordFilter from '#/wordfilter/WordFilter.js';
 import WordPack from '#/wordfilter/WordPack.js';
 
 import JagFX from '#/sound/JagFX.js';
+import { WORLD_MAP_CHANNEL } from '#/mapview/MapCoords.js';
 
 const CLIENT_VERSION = 274;
 
@@ -2198,6 +2199,7 @@ export class Client extends GameShell {
         }
 
         this.checkMinimap();
+        this.postMapPosition();
         this.locChangeDoQueue();
         await this.soundsDoQueue();
 
@@ -3104,6 +3106,9 @@ export class Client extends GameShell {
                                     World.setViewRadius(Client.clampViewRadius(radius));
                                     this.resetVisCalc();
                                 }
+                            } else if (this.chatInput === '::map') {
+                                // custom: open the world map in its own window (docs/design/world-map.md)
+                                this.openWorldMap();
                             } else if (this.chatInput.startsWith('::')) {
                                 this.out.p1Enc(ClientProt.CLIENT_CHEAT);
                                 this.out.p1(this.chatInput.length - 2 + 1);
@@ -5117,6 +5122,31 @@ export class Client extends GameShell {
         const y00: number = (this.groundh[realLevel][tileX][tileZ] * (128 - tileLocalX) + this.groundh[realLevel][tileX + 1][tileZ] * tileLocalX) >> 7;
         const y11: number = (this.groundh[realLevel][tileX][tileZ + 1] * (128 - tileLocalX) + this.groundh[realLevel][tileX + 1][tileZ + 1] * tileLocalX) >> 7;
         return (y00 * (128 - tileLocalZ) + y11 * tileLocalZ) >> 7;
+    }
+
+    // custom: world map window and the channel that feeds it the player's tile
+    private worldMapChannel: BroadcastChannel | null = null;
+
+    private openWorldMap(): void {
+        if (typeof BroadcastChannel !== 'undefined' && !this.worldMapChannel) {
+            this.worldMapChannel = new BroadcastChannel(WORLD_MAP_CHANNEL);
+        }
+
+        window.open('/worldmap.html', 'lostcity-worldmap', 'width=920,height=640');
+        this.postMapPosition(true);
+    }
+
+    // Posts {x, z, level} (absolute tile, as in getSpecialArea) about once a second once a map was opened.
+    private postMapPosition(force: boolean = false): void {
+        if (!this.worldMapChannel || !this.localPlayer || (!force && Client.loopCycle % 50 !== 0)) {
+            return;
+        }
+
+        this.worldMapChannel.postMessage({
+            x: (this.localPlayer.x >> 7) + this.mapBuildBaseX,
+            z: (this.localPlayer.z >> 7) + this.mapBuildBaseZ,
+            level: this.minusedlevel
+        });
     }
 
     private checkMinimap(): void {

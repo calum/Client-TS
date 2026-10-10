@@ -10,6 +10,7 @@ import { downloadUrl, sleep } from '#/util/JsUtil.js';
 import { canvas, saveDataURL } from '#/graphics/Canvas.js';
 import PixMap from '#/graphics/PixMap.js';
 import WorldMapFont from '#/mapview/WorldMapFont.js';
+import { MAP_AREAS, WORLD_MAP_CHANNEL, areaForTile, mapToScreen, parsePlayerPos, tileToMap, type PlayerPos } from '#/mapview/MapCoords.js';
 
 export class MapView extends GameShell {
     static shouldDrawBorders: boolean = false;
@@ -179,10 +180,77 @@ export class MapView extends GameShell {
         'Agility Training'
     ];
 
+    // custom: player marker, fed by the game client over a same-origin BroadcastChannel
+    playerPos: PlayerPos | null = null;
+    private centredOnPlayer: boolean = false;
+    private mapChannel: BroadcastChannel | null = null;
+
     constructor() {
         super();
 
+        // custom: the game client posts the player's tile and level here (see Client.postMapPosition)
+        if (typeof BroadcastChannel !== 'undefined') {
+            this.mapChannel = new BroadcastChannel(WORLD_MAP_CHANNEL);
+            this.mapChannel.onmessage = (e: MessageEvent): void => {
+                const pos: PlayerPos | null = parsePlayerPos(e.data);
+                if (pos) {
+                    this.playerPos = pos;
+                    this.redraw = true;
+                }
+            };
+        }
+
         this.run();
+    }
+
+    // custom: switch to the area that holds the player and focus on them
+    async centreOnPlayer(): Promise<void> {
+        const pos: PlayerPos | null = this.playerPos;
+        if (!pos) {
+            return;
+        }
+
+        const areaId: number = areaForTile(pos.x, pos.z);
+        if (areaId === -1) {
+            return;
+        }
+
+        if (areaId !== this.mapArea) {
+            if (areaId === 0) {
+                await this.reloadMain();
+            } else if (areaId === 1) {
+                await this.reloadDungeon();
+            } else {
+                await this.reloadExtra();
+            }
+        }
+
+        const at = tileToMap(MAP_AREAS[areaId], pos.x, pos.z);
+        this.focusX = at.x;
+        this.focusZ = at.y;
+        this.redraw = true;
+    }
+
+    // custom: draw the player marker if the player is inside the area being shown
+    drawPlayerMarker(left: number, top: number, right: number, bottom: number): void {
+        const pos: PlayerPos | null = this.playerPos;
+        if (!pos || areaForTile(pos.x, pos.z) !== this.mapArea) {
+            return;
+        }
+
+        // a tile covers map x [X, X+1) and map y [Y-1, Y): aim for its centre
+        const at = tileToMap(MAP_AREAS[this.mapArea], pos.x, pos.z);
+        const screen = mapToScreen(at.x + 0.5, at.y - 0.5, left, top, right, bottom, this.sWid, this.sHei);
+        if (screen.x < 0 || screen.y < 0 || screen.x >= this.sWid || screen.y >= this.sHei) {
+            return;
+        }
+
+        Pix2D.fillCircle(screen.x, screen.y, 12, 0xff0000, 96);
+        Pix2D.fillCircle(screen.x, screen.y, 6, 0xffffff, 256);
+        Pix2D.fillCircle(screen.x, screen.y, 4, 0xff0000, 256);
+        if (pos.level > 0) {
+            this.b12?.drawString(`Level ${pos.level + 1}`, screen.x + 10, screen.y + 4, 0xffffff);
+        }
     }
 
     override async maininit(): Promise<void> {
@@ -331,6 +399,7 @@ export class MapView extends GameShell {
             const right: number = this.focusX + ((this.sWid / this.zoom) | 0);
             const bottom: number = this.focusZ + ((this.sHei / this.zoom) | 0);
             this.renderWorldMap(left, top, right, bottom, 0, 0, this.sWid, this.sHei);
+            this.drawPlayerMarker(left, top, right, bottom);
 
             if (this.showOverview) {
                 this.overview?.quickPlotSprite(this.overviewX, this.overviewY);
@@ -435,6 +504,12 @@ export class MapView extends GameShell {
     }
 
     override async mainloop(): Promise<void> {
+        // custom: the first position from the game centres the map on the player (once the map data has loaded)
+        if (this.playerPos && !this.centredOnPlayer && this.overview) {
+            this.centredOnPlayer = true;
+            await this.centreOnPlayer();
+        }
+
         if (this.keyHeld[1] == 1) {
             this.focusX = (this.focusX - 16.0 / this.zoom) | 0;
             this.redraw = true;
@@ -474,6 +549,9 @@ export class MapView extends GameShell {
             } else if (key == 'k'.charCodeAt(0) || key == 'K'.charCodeAt(0)) {
                 this.showKey = !this.showKey;
                 this.redraw = true;
+            } else if (key == 'c'.charCodeAt(0) || key == 'C'.charCodeAt(0)) {
+                // custom: centre on the player
+                await this.centreOnPlayer();
             } else if (key == 'o'.charCodeAt(0) || key == 'O'.charCodeAt(0)) {
                 this.showOverview = !this.showOverview;
                 this.redraw = true;
