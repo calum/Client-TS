@@ -105,6 +105,9 @@ export default class Model extends ModelSource {
     static vertexViewSpaceY: Int32Array = new Int32Array(4096);
     static vertexViewSpaceZ: Int32Array = new Int32Array(4096);
 
+    // custom: depth beyond which models are not drawn (upstream 3500), set by World.setViewRadius
+    static drawDistance: number = 3500;
+
     static tmpDepthFaceCount: Int32Array = new Int32Array(1500);
     static tmpDepthFaces: Int32Array[] = new Int32Array2d(1500, 512);
     static tmpPriorityFaceCount: Int32Array = new Int32Array(12);
@@ -1720,7 +1723,7 @@ export default class Model extends ModelSource {
         const radiusCosEyePitch: number = (this.radius * cosEyePitch) >> 16;
 
         const maxZ: number = midZ + radiusCosEyePitch;
-        if (maxZ <= 50 || midZ >= 3500) {
+        if (maxZ <= 50 || midZ >= Model.drawDistance) {
             return;
         }
 

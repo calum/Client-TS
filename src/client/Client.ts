@@ -92,6 +92,10 @@ export class Client extends GameShell {
     // custom: camera zoom limits (256 = the original distance)
     static readonly MIN_CAMERA_ZOOM: number = 128;
     static readonly MAX_CAMERA_ZOOM: number = 512;
+    // custom: render radius in tiles (upstream 25), overridable with ?radius=N or ::radius N
+    static readonly DEFAULT_VIEW_RADIUS: number = 32;
+    static readonly MIN_VIEW_RADIUS: number = 10;
+    static readonly MAX_VIEW_RADIUS: number = 50;
 
     static cyclelogic1: number = 0;
     static cyclelogic2: number = 0;
@@ -364,6 +368,7 @@ export class Client extends GameShell {
     private middleDragging: boolean = false;
     private middleDragX: number = 0;
     private middleDragY: number = 0;
+    private sceneDrawMs: number = 0;
 
     private chatCount: number = 0;
     private chatX: Int32Array = new Int32Array(MAX_CHATS);
@@ -1235,6 +1240,7 @@ export class Client extends GameShell {
             Pix3D.setClipping(512, 334);
             this.gameScanline = Pix3D.scanline;
 
+            World.setViewRadius(Client.clampViewRadius(this.getIntParam('radius', Client.DEFAULT_VIEW_RADIUS)));
             this.resetVisCalc();
             WordFilter.unpack(wordenc);
 
@@ -3091,6 +3097,13 @@ export class Client extends GameShell {
                                 } catch (_e) {
                                     // empty
                                 }
+                            } else if (this.chatInput.startsWith('::radius ')) {
+                                // custom: change the render radius live
+                                const radius: number = parseInt(this.chatInput.substring(9));
+                                if (!isNaN(radius)) {
+                                    World.setViewRadius(Client.clampViewRadius(radius));
+                                    this.resetVisCalc();
+                                }
                             } else if (this.chatInput.startsWith('::')) {
                                 this.out.p1Enc(ClientProt.CLIENT_CHEAT);
                                 this.out.p1(this.chatInput.length - 2 + 1);
@@ -3220,6 +3233,10 @@ export class Client extends GameShell {
         console.log(`psize:${this.psize}`);
         // this.stream?.debug();
         this.debug = true;
+    }
+
+    private static clampViewRadius(radius: number): number {
+        return Math.max(Client.MIN_VIEW_RADIUS, Math.min(Client.MAX_VIEW_RADIUS, radius));
     }
 
     // custom: the visibility table depends on the camera distance, so it is rebuilt for the current zoom
@@ -4264,7 +4281,9 @@ export class Client extends GameShell {
         Model.mouseY = this.mouseY - 4;
 
         Pix2D.cls();
+        const sceneStart: number = performance.now(); // custom: scene draw time, shown with ::fpson
         this.world?.renderAll(this.camX, this.camY, this.camZ, level, this.camYaw, this.camPitch);
+        this.sceneDrawMs += (performance.now() - sceneStart - this.sceneDrawMs) / 20;
         this.world?.removeSprites();
         this.entityOverlays();
         this.coordArrow();
@@ -4917,7 +4936,11 @@ export class Client extends GameShell {
 
             if (memoryUsage !== -1) {
                 this.p12?.drawStringRight('Mem:' + memoryUsage + 'k', x, y, Colour.YELLOW);
+                y += 15;
             }
+
+            // custom: render radius and average scene draw time
+            this.p12?.drawStringRight('Radius:' + World.viewRadius + ' Scene:' + this.sceneDrawMs.toFixed(1) + 'ms', x, y, Colour.YELLOW);
         }
 
         if (this.rebootTimer !== 0) {
