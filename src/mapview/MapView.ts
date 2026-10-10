@@ -10,7 +10,7 @@ import { downloadUrl, sleep } from '#/util/JsUtil.js';
 import { canvas, saveDataURL } from '#/graphics/Canvas.js';
 import PixMap from '#/graphics/PixMap.js';
 import WorldMapFont from '#/mapview/WorldMapFont.js';
-import { MAP_AREAS, WORLD_MAP_CHANNEL, areaForTile, mapToScreen, parsePlayerPos, tileToMap, type PlayerPos } from '#/mapview/MapCoords.js';
+import { MAP_AREAS, WORLD_MAP_CHANNEL, areaForTile, clampToScreen, mapToScreen, parsePlayerPos, shouldFollowArea, stepZoom, tileToMap, type PlayerPos } from '#/mapview/MapCoords.js';
 
 export class MapView extends GameShell {
     static shouldDrawBorders: boolean = false;
@@ -183,6 +183,8 @@ export class MapView extends GameShell {
     // custom: player marker, fed by the game client over a same-origin BroadcastChannel
     playerPos: PlayerPos | null = null;
     private centredOnPlayer: boolean = false;
+    private followArea: boolean = false;
+    private lastWheel: number = 0;
     private mapChannel: BroadcastChannel | null = null;
 
     constructor() {
@@ -194,6 +196,10 @@ export class MapView extends GameShell {
             this.mapChannel.onmessage = (e: MessageEvent): void => {
                 const pos: PlayerPos | null = parsePlayerPos(e.data);
                 if (pos) {
+                    // crossing into another area (for example down a ladder) switches the map; done in mainloop
+                    if (shouldFollowArea(this.playerPos, pos)) {
+                        this.followArea = true;
+                    }
                     this.playerPos = pos;
                     this.redraw = true;
                 }
@@ -201,6 +207,20 @@ export class MapView extends GameShell {
         }
 
         this.run();
+    }
+
+    // custom: mouse wheel steps through the four zoom levels (the label fonts only exist for those)
+    override mouseWheel(e: WheelEvent): void {
+        e.preventDefault();
+
+        const now: number = performance.now();
+        if (e.deltaY === 0 || now - this.lastWheel < 120) {
+            return;
+        }
+
+        this.lastWheel = now;
+        this.targetZoom = stepZoom(this.targetZoom, e.deltaY < 0 ? 1 : -1);
+        this.redraw = true;
     }
 
     // custom: switch to the area that holds the player and focus on them
@@ -231,6 +251,12 @@ export class MapView extends GameShell {
         this.redraw = true;
     }
 
+    // custom: white text with a black shadow so it reads on any ground colour
+    private drawMarkerText(str: string, x: number, y: number): void {
+        this.b12?.drawString(str, x + 1, y + 1, 0);
+        this.b12?.drawString(str, x, y, 0xffffff);
+    }
+
     // custom: draw the player marker if the player is inside the area being shown
     drawPlayerMarker(left: number, top: number, right: number, bottom: number): void {
         const pos: PlayerPos | null = this.playerPos;
@@ -241,7 +267,12 @@ export class MapView extends GameShell {
         // a tile covers map x [X, X+1) and map y [Y-1, Y): aim for its centre
         const at = tileToMap(MAP_AREAS[this.mapArea], pos.x, pos.z);
         const screen = mapToScreen(at.x + 0.5, at.y - 0.5, left, top, right, bottom, this.sWid, this.sHei);
-        if (screen.x < 0 || screen.y < 0 || screen.x >= this.sWid || screen.y >= this.sHei) {
+        const edge = clampToScreen(screen.x, screen.y, this.sWid, this.sHei, 24);
+        if (!edge.inside) {
+            // off screen: a marker on the nearest window edge shows which way you are
+            Pix2D.fillCircle(edge.x, edge.y, 9, 0xffffff, 256);
+            Pix2D.fillCircle(edge.x, edge.y, 7, 0xff0000, 256);
+            this.drawMarkerText('You', edge.x < this.sWid / 2 ? edge.x + 12 : edge.x - 34, edge.y + 5);
             return;
         }
 
@@ -249,7 +280,7 @@ export class MapView extends GameShell {
         Pix2D.fillCircle(screen.x, screen.y, 6, 0xffffff, 256);
         Pix2D.fillCircle(screen.x, screen.y, 4, 0xff0000, 256);
         if (pos.level > 0) {
-            this.b12?.drawString(`Level ${pos.level + 1}`, screen.x + 10, screen.y + 4, 0xffffff);
+            this.drawMarkerText(`Level ${pos.level + 1}`, screen.x + 10, screen.y + 5);
         }
     }
 
@@ -504,6 +535,12 @@ export class MapView extends GameShell {
     }
 
     override async mainloop(): Promise<void> {
+        // custom: follow the player into another map area
+        if (this.followArea && this.overview) {
+            this.followArea = false;
+            await this.centreOnPlayer();
+        }
+
         // custom: the first position from the game centres the map on the player (once the map data has loaded)
         if (this.playerPos && !this.centredOnPlayer && this.overview) {
             this.centredOnPlayer = true;

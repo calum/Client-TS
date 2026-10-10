@@ -45,3 +45,31 @@ export function parsePlayerPos(data: unknown): PlayerPos | null {
     }
     return { x: d.x, z: d.z, level: d.level };
 }
+
+export const ZOOM_STEPS: number[] = [3, 4, 6, 8];
+
+// Next zoom level in the given direction (1 in, -1 out), clamped to the ends of ZOOM_STEPS.
+export function stepZoom(current: number, direction: number): number {
+    let index: number = ZOOM_STEPS.indexOf(current);
+    if (index === -1) {
+        index = 1;
+    }
+    index = Math.max(0, Math.min(ZOOM_STEPS.length - 1, index + (direction > 0 ? 1 : -1)));
+    return ZOOM_STEPS[index];
+}
+
+// True when a new position is in a different map area from the previous one (so the map should follow).
+export function shouldFollowArea(prev: PlayerPos | null, next: PlayerPos): boolean {
+    if (!prev) {
+        return false;
+    }
+    const to: number = areaForTile(next.x, next.z);
+    return to !== -1 && to !== areaForTile(prev.x, prev.z);
+}
+
+// Pull an off-screen point onto the window edge. `inside` is true when no clamping was needed.
+export function clampToScreen(x: number, y: number, width: number, height: number, margin: number): { x: number; y: number; inside: boolean } {
+    const cx: number = Math.max(margin, Math.min(width - margin, x));
+    const cy: number = Math.max(margin, Math.min(height - margin, y));
+    return { x: cx, y: cy, inside: cx === x && cy === y };
+}
