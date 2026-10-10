@@ -51,6 +51,11 @@ export default abstract class GameShell {
         e.preventDefault();
     };
 
+    // custom: scroll-wheel camera zoom
+    private readonly wheelHandler = (e: WheelEvent): void => {
+        this.mouseWheel(e);
+    };
+
     protected async maininit() { }
     protected mainquit() { }
     protected async mainloop() { }
@@ -103,6 +108,7 @@ export default abstract class GameShell {
         canvas.onpointermove = this.onpointermove.bind(this);
         window.onmouseup = this.windowMouseUp.bind(this);
         window.onmousemove = this.windowMouseMove.bind(this);
+        canvas.addEventListener('wheel', this.wheelHandler, { passive: false });
 
         if (this.isTouchDevice) {
             canvas.style.touchAction = 'pinch-zoom';
@@ -245,6 +251,7 @@ export default abstract class GameShell {
         canvas.onpointerleave = null;
         canvas.onpointermove = null;
         canvas.removeEventListener('touchend', this.touchEndHandler);
+        canvas.removeEventListener('wheel', this.wheelHandler);
         canvas.oncontextmenu = null;
         window.onmouseup = null;
         window.onmousemove = null;
@@ -311,7 +318,23 @@ export default abstract class GameShell {
 
         this.getMousePos(e);
 
+        // custom: middle button drags the camera instead of acting as a left click
+        if (e.button === 1) {
+            e.preventDefault(); // stops the browser's middle-click autoscroll
+            this.middleMouseDown(this.absMouseX, this.absMouseY, e);
+            return;
+        }
+
         this.mouseDown(this.absMouseX, this.absMouseY, e);
+    }
+
+    protected middleMouseDown(_x: number, _y: number, _e: MouseEvent) {
+    }
+
+    protected middleMouseUp(_e: MouseEvent) {
+    }
+
+    protected mouseWheel(_e: WheelEvent) {
     }
 
     protected mouseDown(x: number, y: number, e: MouseEvent) {
@@ -348,6 +371,12 @@ export default abstract class GameShell {
 
     private onmouseup(e: MouseEvent) {
         this.getMousePos(e);
+
+        // custom: releasing the middle button only ends a camera drag
+        if (e.button === 1) {
+            this.middleMouseUp(e);
+            return;
+        }
 
         this.mouseUp(this.absMouseX, this.absMouseY, e);
     }

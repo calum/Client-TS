@@ -89,6 +89,9 @@ export class Client extends GameShell {
     static nodeId: number = 10;
     static memServer: boolean = true;
     static lowMem: boolean = false;
+    // custom: camera zoom limits (256 = the original distance)
+    static readonly MIN_CAMERA_ZOOM: number = 128;
+    static readonly MAX_CAMERA_ZOOM: number = 512;
 
     static cyclelogic1: number = 0;
     static cyclelogic2: number = 0;
@@ -353,6 +356,14 @@ export class Client extends GameShell {
     private sendCameraDelay: number = 0;
     private sendCamera: boolean = false;
     private cameraPitchClamp: number = 0;
+
+    // custom: scroll-wheel zoom (256 = the original distance) and middle-mouse camera drag
+    private cameraZoom: number = 256;
+    private visCalcZoom: number = 256;
+    private lastZoomTime: number = 0;
+    private middleDragging: boolean = false;
+    private middleDragX: number = 0;
+    private middleDragY: number = 0;
 
     private chatCount: number = 0;
     private chatX: Int32Array = new Int32Array(MAX_CHATS);
@@ -1224,15 +1235,7 @@ export class Client extends GameShell {
             Pix3D.setClipping(512, 334);
             this.gameScanline = Pix3D.scanline;
 
-            const distance: Int32Array = new Int32Array(9);
-            for (let x: number = 0; x < 9; x++) {
-                const angle: number = x * 32 + 128 + 15;
-                const offset: number = angle * 3 + 600;
-                const sin: number = Pix3D.sinTable[angle];
-                distance[x] = (offset * sin) >> 16;
-            }
-
-            World.resetVisCalc(distance, 500, 800, 512, 334);
+            this.resetVisCalc();
             WordFilter.unpack(wordenc);
 
             if (!this.mouseTrackingInterval) {
@@ -3219,9 +3222,28 @@ export class Client extends GameShell {
         this.debug = true;
     }
 
+    // custom: the visibility table depends on the camera distance, so it is rebuilt for the current zoom
+    private resetVisCalc(): void {
+        const distance: Int32Array = new Int32Array(9);
+        for (let x: number = 0; x < 9; x++) {
+            const angle: number = x * 32 + 128 + 15;
+            const offset: number = ((angle * 3 + 600) * this.cameraZoom) >> 8;
+            const sin: number = Pix3D.sinTable[angle];
+            distance[x] = (offset * sin) >> 16;
+        }
+
+        World.resetVisCalc(distance, 500, 800, 512, 334);
+        this.visCalcZoom = this.cameraZoom;
+    }
+
     private followCamera(): void {
         if (!this.localPlayer) {
             return; // custom
+        }
+
+        // custom: rebuild the visibility table once the zoom has stopped changing
+        if (this.visCalcZoom !== this.cameraZoom && performance.now() - this.lastZoomTime > 150) {
+            this.resetVisCalc();
         }
 
         const orbitX: number = this.localPlayer.x + this.macroCameraX;
@@ -4191,7 +4213,7 @@ export class Client extends GameShell {
             const yaw: number = (this.orbitCameraYaw + this.macroCameraAngle) & 0x7ff;
 
             if (this.localPlayer) {
-                this.camFollow(pitch, yaw, this.orbitCameraX, this.getAvH(this.localPlayer.x, this.localPlayer.z, this.minusedlevel) - 50, this.orbitCameraZ, pitch * 3 + 600);
+                this.camFollow(pitch, yaw, this.orbitCameraX, this.getAvH(this.localPlayer.x, this.localPlayer.z, this.minusedlevel) - 50, this.orbitCameraZ, ((pitch * 3 + 600) * this.cameraZoom) >> 8);
             }
         }
 
@@ -11632,6 +11654,81 @@ export class Client extends GameShell {
     private ny: number = 0;
     private dragging: boolean = false;
     private panning: boolean = false;
+
+    // custom: scroll-wheel zoom over the 3D view
+    override mouseWheel(e: WheelEvent) {
+        if (!this.ingame) {
+            return;
+        }
+
+        e.preventDefault();
+
+        if (!this.insideGame() || this.cinemaCam || e.deltaY === 0) {
+            return;
+        }
+
+        if (e.deltaY < 0) {
+            this.cameraZoom = Math.max(Client.MIN_CAMERA_ZOOM, ((this.cameraZoom * 9) / 10) | 0);
+        } else {
+            this.cameraZoom = Math.min(Client.MAX_CAMERA_ZOOM, ((this.cameraZoom * 10) / 9) | 0);
+        }
+        this.lastZoomTime = performance.now();
+    }
+
+    // custom: middle-mouse drag rotates the camera
+    override middleMouseDown(x: number, y: number, e: MouseEvent) {
+        this.idleTimer = performance.now();
+        this.mouseX = x;
+        this.mouseY = y;
+
+        if (this.insideGame() && !this.cinemaCam) {
+            this.middleDragging = true;
+            this.middleDragX = e.screenX;
+            this.middleDragY = e.screenY;
+        }
+    }
+
+    override middleMouseUp(_e: MouseEvent) {
+        this.middleDragging = false;
+    }
+
+    override windowMouseUp(e: MouseEvent) {
+        if (e.button === 1) {
+            this.middleDragging = false;
+        }
+    }
+
+    override windowMouseMove(e: MouseEvent) {
+        if (!this.middleDragging) {
+            return;
+        }
+
+        if ((e.buttons & 4) === 0) {
+            // released outside the window
+            this.middleDragging = false;
+            return;
+        }
+
+        const dx: number = e.screenX - this.middleDragX;
+        const dy: number = e.screenY - this.middleDragY;
+        this.middleDragX = e.screenX;
+        this.middleDragY = e.screenY;
+
+        if (dx === 0 && dy === 0) {
+            return;
+        }
+
+        this.idleTimer = performance.now();
+        // same directions as the touchscreen panning below: drag right turns like the left arrow, drag up like the down arrow
+        this.orbitCameraYaw = (this.orbitCameraYaw - dx * 2) & 0x7ff;
+        this.orbitCameraPitch += dy;
+        if (this.orbitCameraPitch < 128) {
+            this.orbitCameraPitch = 128;
+        } else if (this.orbitCameraPitch > 383) {
+            this.orbitCameraPitch = 383;
+        }
+        this.sendCamera = true;
+    }
 
     override pointerDown(x: number, y: number, e: PointerEvent) {
         if (MobileKeyboard.isWithinCanvasKeyboard(x, y) && !this.exceedsGrabThreshold(20)) {
