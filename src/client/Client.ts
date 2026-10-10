@@ -10478,7 +10478,9 @@ export class Client extends GameShell {
                     const com: IfType = IfType.list[script[pc++]];
                     const obj: number = script[pc++] + 1;
 
-                    if (com.linkObjType && com.linkObjNumber && obj >= 0 && obj < ObjType.numDefinitions && (!ObjType.list(obj).members || Client.memServer)) {
+                    if (this.relicFreeRunes && obj >= 0 && obj < ObjType.numDefinitions && /rune$/i.test(ObjType.list(obj).name ?? '')) {
+                        register = 999999999;
+                    } else if (com.linkObjType && com.linkObjNumber && obj >= 0 && obj < ObjType.numDefinitions && (!ObjType.list(obj).members || Client.memServer)) {
                         for (let i: number = 0; i < com.linkObjType.length; i++) {
                             if (com.linkObjType[i] === obj) {
                                 register += com.linkObjNumber[i];
@@ -10647,6 +10649,9 @@ export class Client extends GameShell {
         return updated;
     }
 
+    // relic mode: with Infinite Runes every rune counts as owned when the interface scripts check inv_count
+    private relicFreeRunes: boolean = false;
+
     private clientVar(id: number): void {
         const clientcode: number = VarpType.list[id].clientcode;
         if (clientcode === 0) {
@@ -10654,6 +10659,11 @@ export class Client extends GameShell {
         }
 
         const value: number = this.var[id];
+        if (clientcode === 100) {
+            // relic mode: %relic_owned, bit 15 = Infinite Runes
+            this.relicFreeRunes = ((value >> 15) & 1) === 1;
+            return;
+        }
         if (clientcode === 1) {
             if (value === 1) {
                 Pix3D.initColourTable(0.9);
