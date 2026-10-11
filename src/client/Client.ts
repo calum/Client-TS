@@ -71,6 +71,7 @@ import WordFilter from '#/wordfilter/WordFilter.js';
 import WordPack from '#/wordfilter/WordPack.js';
 
 import { TOAST_DURATION_MS, drawToast, parseToastMessage } from '#/client/Toast.js';
+import { CustomMusic, loadCustomMusic } from '#/sound/CustomMusic.js';
 import { loadCustomSounds } from '#/sound/CustomSounds.js';
 import JagFX from '#/sound/JagFX.js';
 import { WORLD_MAP_CHANNEL } from '#/mapview/MapCoords.js';
@@ -547,6 +548,7 @@ export class Client extends GameShell {
     private waveLoops: Int32Array = new Int32Array(50);
     private waveDelay: Int32Array = new Int32Array(50);
     private customSounds: Map<number, Uint8Array> = new Map();
+    private customMusic: CustomMusic = new CustomMusic(new Map());
     private lastWaveId: number = -1;
     private lastWaveLoops: number = -1;
     private lastWaveLength: number = 0;
@@ -622,6 +624,19 @@ export class Client extends GameShell {
         Pix3D.lowMem = false;
         Client.lowMem = false;
         ClientBuild.lowMem = false;
+    }
+
+    /** Starts song `id`: a recording from custom-sounds/ if there is one (src/sound/CustomMusic.ts), else the MIDI from the update server. */
+    private startSong(id: number, fading: boolean): void {
+        this.midiSong = id; // also drops the data of an older MIDI request that is still on its way
+        this.midiFading = fading;
+        if (this.customMusic.has(id)) {
+            stopMidi(false);
+            this.customMusic.play(id, this.midiVolume);
+            return;
+        }
+        this.customMusic.stop(fading);
+        this.onDemand?.request(2, id);
     }
 
     saveMidi(data: Uint8Array, fading: boolean) {
@@ -1192,6 +1207,7 @@ export class Client extends GameShell {
                 const soundsDat = sounds.read('sounds.dat');
                 JagFX.init(new Packet(soundsDat));
                 this.customSounds = await loadCustomSounds();
+                this.customMusic = new CustomMusic(await loadCustomMusic());
             }
 
             await this.drawProgress('Unpacking interfaces', 95);
@@ -2485,6 +2501,7 @@ export class Client extends GameShell {
         }
 
         stopMidi(false);
+        this.customMusic.stop(false);
         this.nextMidiSong = -1;
         this.midiSong = -1;
         this.nextMusicDelay = 0;
@@ -3502,9 +3519,7 @@ export class Client extends GameShell {
             }
 
             if (this.nextMusicDelay === 0 && this.midiActive && !Client.lowMem) {
-                this.midiSong = this.nextMidiSong;
-                this.midiFading = true;
-                this.onDemand?.request(2, this.midiSong);
+                this.startSong(this.nextMidiSong, true);
             }
         }
     }
@@ -7137,9 +7152,7 @@ export class Client extends GameShell {
                 }
 
                 if (this.nextMidiSong != songId && this.midiActive && !Client.lowMem && this.nextMusicDelay === 0) {
-                    this.midiSong = songId;
-                    this.midiFading = true;
-                    this.onDemand?.request(2, this.midiSong);
+                    this.startSong(songId, true);
                 }
 
                 this.nextMidiSong = songId;
@@ -7153,9 +7166,7 @@ export class Client extends GameShell {
                 const delay: number = this.in.g2();
 
                 if (this.midiActive && !Client.lowMem) {
-                    this.midiSong = jingleId;
-                    this.midiFading = false;
-                    this.onDemand?.request(2, this.midiSong);
+                    this.startSong(jingleId, false);
                     this.nextMusicDelay = delay;
                 }
 
@@ -10738,15 +10749,15 @@ export class Client extends GameShell {
 
             if (this.midiActive) {
                 setMidiVolume(this.midiVolume);
+                this.customMusic.setVolumeDb(this.midiVolume);
             }
 
             if (this.midiActive !== lastMidiActive) {
                 if (this.midiActive) {
-                    this.midiSong = this.nextMidiSong;
-                    this.midiFading = true;
-                    this.onDemand?.request(2, this.midiSong);
+                    this.startSong(this.nextMidiSong, true);
                 } else {
                     stopMidi(false);
+                    this.customMusic.stop(false);
                 }
 
                 this.nextMusicDelay = 0;
