@@ -4,7 +4,8 @@
 
 /** MIDI song id -> file name (without extension). Add a line here to make another song replaceable. */
 export const CUSTOM_MUSIC_NAMES: Record<number, string> = {
-    26: 'chop_suey', // attack3, played in the King Black Dragon lair (Content musicregion 0_47_160)
+    26: 'chop_suey', // attack3, played in the lever room before the King Black Dragon lair (Content musicregion 0_47_160)
+    28: 'chop_suey', // attack5, played in the dragon's lair itself (Content musicregion 0_42_153)
     260: 'halo_theme' // insect queen, played in the Kalphite lair and chamber (Content musicregion 0_54_148)
 };
 
@@ -23,7 +24,13 @@ export async function loadCustomMusic(
     toUrl: (blob: Blob) => string = blob => URL.createObjectURL(blob)
 ): Promise<Map<number, string>> {
     const tracks = new Map<number, string>();
+    const byName = new Map<string, string>(); // two songs may share one recording: fetch it once
     for (const [id, name] of Object.entries(CUSTOM_MUSIC_NAMES)) {
+        const known = byName.get(name);
+        if (known) {
+            tracks.set(Number(id), known);
+            continue;
+        }
         for (const ext of CUSTOM_MUSIC_EXTENSIONS) {
             try {
                 const res = await fetchFn(`${base}/${name}.${ext}`);
@@ -33,7 +40,9 @@ export async function loadCustomMusic(
                 }
                 const blob = await res.blob();
                 if (blob.size > 0) {
-                    tracks.set(Number(id), toUrl(blob));
+                    const url = toUrl(blob);
+                    byName.set(name, url);
+                    tracks.set(Number(id), url);
                     break;
                 }
             } catch (_e) {
@@ -52,6 +61,7 @@ export class CustomMusic {
     current: number = -1;
 
     private audio: Audio | null = null;
+    private src: string | null = null;
     private volumeDb: number = 0;
     private fadeTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -75,6 +85,12 @@ export class CustomMusic {
         if (!src || this.current === id) {
             return;
         }
+        if (this.audio && this.src === src) {
+            // another song id with the same recording (lever room to the dragon fight): keep it going
+            this.current = id;
+            this.volumeDb = volumeDb;
+            return;
+        }
         this.stop(true);
         this.volumeDb = volumeDb;
         const audio = this.createAudio(src);
@@ -83,6 +99,7 @@ export class CustomMusic {
         // the browser may refuse before a user gesture; the next song change tries again
         void Promise.resolve(audio.play()).catch(() => {});
         this.audio = audio;
+        this.src = src;
         this.current = id;
         this.fade(audio, this.targetGain(), false);
     }

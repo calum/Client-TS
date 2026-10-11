@@ -27,6 +27,7 @@ function setup() {
     const made: FakeAudio[] = [];
     const tracks = new Map([
         [26, 'blob:kbd'],
+        [28, 'blob:kbd'],
         [260, 'blob:kq']
     ]);
     const music = new CustomMusic(tracks, src => {
@@ -37,8 +38,8 @@ function setup() {
     return { music, made };
 }
 
-test('song 26 (Attack3, King Black Dragon lair) is chop_suey and 260 (Insect Queen, Kalphite lair) is halo_theme', () => {
-    expect(CUSTOM_MUSIC_NAMES).toEqual({ 26: 'chop_suey', 260: 'halo_theme' });
+test('songs 26 (Attack3, lever room) and 28 (Attack5, the dragon fight) are chop_suey; 260 (Insect Queen, Kalphite lair) is halo_theme', () => {
+    expect(CUSTOM_MUSIC_NAMES).toEqual({ 26: 'chop_suey', 28: 'chop_suey', 260: 'halo_theme' });
 });
 
 test('loads /custom-sounds/<name>.mp3 for each song id and skips missing files, HTML fallbacks and network errors', async () => {
@@ -50,7 +51,10 @@ test('loads /custom-sounds/<name>.mp3 for each song id and skips missing files, 
         throw new Error('offline');
     };
     const tracks = await loadCustomMusic(fake as unknown as typeof fetch, '/custom-sounds', () => 'blob:x');
-    expect([...tracks.entries()]).toEqual([[26, 'blob:x']]);
+    expect([...tracks.entries()]).toEqual([
+        [26, 'blob:x'],
+        [28, 'blob:x']
+    ]);
     expect(asked).toContain('/custom-sounds/chop_suey.mp3');
     expect(asked).toContain('/custom-sounds/halo_theme.mp3');
 });
@@ -118,4 +122,19 @@ test('jingles are silenced while a recording plays, so the recording carries on 
     expect(music.silencesJingles()).toBe(true);
     music.stop(false);
     expect(music.silencesJingles()).toBe(false);
+});
+
+test('moving between two songs that share one recording (lever room to the dragon fight) keeps it playing without a restart', async () => {
+    const { music, made } = setup();
+    music.play(26, 0);
+    await wait(60);
+    music.play(28, 0);
+    await wait(60);
+    expect(made.length).toBe(1);
+    expect(made[0].paused).toBe(false);
+    expect(music.current).toBe(28);
+    music.play(260, 0);
+    await wait(80);
+    expect(made.length).toBe(2);
+    expect(made[0].paused).toBe(true);
 });
