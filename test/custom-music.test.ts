@@ -110,3 +110,12 @@ test('switching to the other recording stops the first; a blocked play() does no
     expect(() => blocked.play(26, 0)).not.toThrow();
     await wait(20);
 });
+
+test('jingles are silenced while a recording plays, so the recording carries on (it is not cut or restarted)', async () => {
+    const { music } = setup();
+    expect(music.silencesJingles()).toBe(false);
+    music.play(26, 0);
+    expect(music.silencesJingles()).toBe(true);
+    music.stop(false);
+    expect(music.silencesJingles()).toBe(false);
+});

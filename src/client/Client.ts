@@ -7165,7 +7165,8 @@ export class Client extends GameShell {
                 const jingleId: number = this.in.g2();
                 const delay: number = this.in.g2();
 
-                if (this.midiActive && !Client.lowMem) {
+                // a lair recording carries on through jingles: skip the jingle, so nothing cuts or restarts it
+                if (this.midiActive && !Client.lowMem && !this.customMusic.silencesJingles()) {
                     this.startSong(jingleId, false);
                     this.nextMusicDelay = delay;
                 }

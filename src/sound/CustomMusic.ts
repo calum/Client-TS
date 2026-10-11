@@ -61,6 +61,11 @@ export class CustomMusic {
         private readonly fadeMs: number = 2000
     ) {}
 
+    /** A jingle (level up, quest) would cut the recording and restart it afterwards, so the client skips jingles while one plays. */
+    silencesJingles(): boolean {
+        return this.current !== -1;
+    }
+
     has(id: number): boolean {
         return this.tracks.has(id);
     }
