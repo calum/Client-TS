@@ -70,6 +70,7 @@ import { reverseDnsLookup } from '#/util/WebDns.js';
 import WordFilter from '#/wordfilter/WordFilter.js';
 import WordPack from '#/wordfilter/WordPack.js';
 
+import { loadCustomSounds } from '#/sound/CustomSounds.js';
 import JagFX from '#/sound/JagFX.js';
 import { WORLD_MAP_CHANNEL } from '#/mapview/MapCoords.js';
 
@@ -542,6 +543,7 @@ export class Client extends GameShell {
     private waveIds: Int32Array = new Int32Array(50);
     private waveLoops: Int32Array = new Int32Array(50);
     private waveDelay: Int32Array = new Int32Array(50);
+    private customSounds: Map<number, Uint8Array> = new Map();
     private lastWaveId: number = -1;
     private lastWaveLoops: number = -1;
     private lastWaveLength: number = 0;
@@ -1186,6 +1188,7 @@ export class Client extends GameShell {
                 await this.drawProgress('Unpacking sounds', 90);
                 const soundsDat = sounds.read('sounds.dat');
                 JagFX.init(new Packet(soundsDat));
+                this.customSounds = await loadCustomSounds();
             }
 
             await this.drawProgress('Unpacking interfaces', 95);
@@ -3459,12 +3462,13 @@ export class Client extends GameShell {
         for (let wave: number = 0; wave < this.waveCount; wave++) {
             if (this.waveDelay[wave] <= 0) {
                 try {
-                    const buf: Packet | null = JagFX.generate(this.waveIds[wave], this.waveLoops[wave]);
-                    if (!buf) {
+                    const custom: Uint8Array | undefined = this.customSounds.get(this.waveIds[wave]);
+                    const buf: Packet | null = custom ? null : JagFX.generate(this.waveIds[wave], this.waveLoops[wave]);
+                    if (custom) {
+                        await playWave(custom);
+                    } else if (!buf) {
                         throw new Error();
-                    }
-
-                    if (performance.now() + ((buf.pos / 22) | 0) > this.lastWaveStartTime + ((this.lastWaveLength / 22) | 0)) {
+                    } else if (performance.now() + ((buf.pos / 22) | 0) > this.lastWaveStartTime + ((this.lastWaveLength / 22) | 0)) {
                         this.lastWaveLength = buf.pos;
                         this.lastWaveStartTime = performance.now();
                         this.lastWaveId = this.waveIds[wave];
