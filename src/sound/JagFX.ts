@@ -4,6 +4,11 @@ import Tone from '#/sound/Tone.js';
 
 import { TypedArray1d } from '#/util/Arrays.js';
 
+/** Extra loudness for individual synth sounds: id -> amplitude multiplier (2 is twice the amplitude, clipped at full scale). */
+export const SYNTH_GAIN: Record<number, number> = {
+    912: 2 // relic_attune (Content/pack/synth.pack), docs/design/relics-attune.md
+};
+
 export default class JagFX {
     static synth: (JagFX | null)[] = new TypedArray1d(1000, null);
     static delays: Int32Array = new Int32Array(1000);
@@ -12,6 +17,7 @@ export default class JagFX {
     static waveBuffer: Packet = new Packet(this.waveBytes);
 
     tones: (Tone | null)[] = new TypedArray1d(10, null);
+    gain: number = 1;
     loopBegin: number = 0;
     loopEnd: number = 0;
 
@@ -24,6 +30,7 @@ export default class JagFX {
 
             this.synth[id] = new JagFX();
             this.synth[id].load(buf);
+            this.synth[id].gain = SYNTH_GAIN[id] ?? 1;
             this.delays[id] = this.synth[id].optimiseStart();
         }
     }
@@ -139,6 +146,13 @@ export default class JagFX {
                 for (let sample = 0; sample < toneSampleCount; sample++) {
                     JagFX.waveBytes[sample + start + 44] += ((samples[sample] >> 8) << 24) >> 24;
                 }
+            }
+        }
+
+        if (this.gain !== 1) {
+            for (let sample = 44; sample < sampleCount + 44; sample++) {
+                const amplified = Math.round((JagFX.waveBytes[sample] - 128) * this.gain);
+                JagFX.waveBytes[sample] = Math.max(-128, Math.min(127, amplified)) + 128;
             }
         }
 
