@@ -70,6 +70,7 @@ import { reverseDnsLookup } from '#/util/WebDns.js';
 import WordFilter from '#/wordfilter/WordFilter.js';
 import WordPack from '#/wordfilter/WordPack.js';
 
+import { TOAST_DURATION_MS, drawToast, parseToastMessage } from '#/client/Toast.js';
 import { loadCustomSounds } from '#/sound/CustomSounds.js';
 import JagFX from '#/sound/JagFX.js';
 import { WORLD_MAP_CHANNEL } from '#/mapview/MapCoords.js';
@@ -165,6 +166,8 @@ export class Client extends GameShell {
     private focusIn: boolean = false;
 
     private showFps: boolean = false;
+    private toastText: string | null = null; // custom: task-complete toast (Toast.ts)
+    private toastStart: number = 0;
     private rebootTimer: number = 0;
 
     private hintType: number = 0;
@@ -4924,6 +4927,15 @@ export class Client extends GameShell {
             this.headicons[1]?.plotSprite(472, 296);
         }
 
+        if (this.toastText !== null) {
+            const elapsed: number = performance.now() - this.toastStart;
+            if (elapsed >= TOAST_DURATION_MS) {
+                this.toastText = null;
+            } else {
+                drawToast(this.toastText, elapsed, this.b12, this.p12);
+            }
+        }
+
         // custom: taken from later client
         if (this.showFps) {
             const x: number = 507;
@@ -6527,6 +6539,9 @@ export class Client extends GameShell {
                     if (!ignored && this.chatDisabled === 0) {
                         this.addChat(8, 'wishes to duel with you.', player);
                     }
+                } else if (parseToastMessage(message) !== null) {
+                    this.toastText = parseToastMessage(message);
+                    this.toastStart = performance.now();
                 } else {
                     this.addChat(0, message, '');
                 }

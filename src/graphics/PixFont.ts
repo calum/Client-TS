@@ -152,6 +152,24 @@ export default class PixFont extends Linkable2 {
         }
     }
 
+    // custom: translucent text (alpha 0-256), used by the task-complete toast
+    drawStringTrans(str: string, x: number, y: number, rgb: number, alpha: number): void {
+        x |= 0;
+        y |= 0;
+
+        y -= this.height;
+
+        for (let i: number = 0; i < str.length; i++) {
+            const c: number = str.charCodeAt(i);
+
+            if (c !== 32) {
+                this.plotLetterTrans(this.charMask[c], x + this.charOffsetX[c], y + this.charOffsetY[c], this.charMaskWidth[c], this.charMaskHeight[c], rgb, alpha);
+            }
+
+            x += this.charAdvance[c];
+        }
+    }
+
     centreStringWave(str: string | null, x: number, y: number, rgb: number, phase: number): void {
         if (str === null) {
             return;
