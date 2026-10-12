@@ -10,6 +10,7 @@ import { downloadUrl, sleep } from '#/util/JsUtil.js';
 import { canvas, saveDataURL } from '#/graphics/Canvas.js';
 import PixMap from '#/graphics/PixMap.js';
 import WorldMapFont from '#/mapview/WorldMapFont.js';
+import { nearestSpawn, searchIndex, spawnsOf, type IndexEntry, type SearchIndex, type SearchResult, type Spawn } from '#/mapview/MapSearch.js';
 import { MAP_AREAS, WORLD_MAP_CHANNEL, areaForTile, clampToScreen, mapToScreen, parsePlayerPos, shouldFollowArea, stepZoom, tileToMap, type PlayerPos } from '#/mapview/MapCoords.js';
 
 export class MapView extends GameShell {
@@ -187,6 +188,12 @@ export class MapView extends GameShell {
     private lastWheel: number = 0;
     private mapChannel: BroadcastChannel | null = null;
 
+    // custom: search box (docs/design/map-search.md). The page's HTML box calls searchQuery / selectSearch / clearSearch.
+    private searchData: SearchIndex | null = null;
+    private searchLoading: Promise<SearchIndex | null> | null = null;
+    private searchSpawns: Spawn[] = [];
+    private searchTarget: Spawn | null = null;
+
     constructor() {
         super();
 
@@ -205,6 +212,14 @@ export class MapView extends GameShell {
                 }
             };
         }
+
+        // custom: the production bundle mangles method names, so the page's search box talks to MapView through this fixed handle
+        (globalThis as unknown as { worldMapSearch: unknown }).worldMapSearch = {
+            query: (q: string): Promise<SearchResult[]> => this.searchQuery(q),
+            select: (e: IndexEntry): Promise<void> => this.selectSearch(e),
+            clear: (): void => this.clearSearch(),
+            area: (): number => this.mapArea
+        };
 
         this.run();
     }
@@ -249,6 +264,69 @@ export class MapView extends GameShell {
         this.focusX = at.x;
         this.focusZ = at.y;
         this.redraw = true;
+    }
+
+    private loadSearchIndex(): Promise<SearchIndex | null> {
+        if (!this.searchLoading) {
+            this.searchLoading = fetch('/mapsearch.json')
+                .then(r => (r.ok ? (r.json() as Promise<SearchIndex>) : null))
+                .then(d => (this.searchData = d))
+                .catch(() => null);
+        }
+        return this.searchLoading;
+    }
+
+    // custom: matches for the text typed in the page's search box (the index is fetched on first use)
+    async searchQuery(query: string): Promise<SearchResult[]> {
+        const data: SearchIndex | null = this.searchData ?? (await this.loadSearchIndex());
+        return data ? searchIndex(data, query) : [];
+    }
+
+    // custom: highlight every spawn of the chosen entry and pan to the nearest one (switching map area if needed)
+    async selectSearch(entry: IndexEntry): Promise<void> {
+        const spawns: Spawn[] = spawnsOf(entry);
+        const target: Spawn | null = nearestSpawn(spawns, this.playerPos, this.mapArea);
+        this.searchSpawns = spawns;
+        this.searchTarget = target;
+        if (target) {
+            if (target.area !== this.mapArea) {
+                if (target.area === 0) {
+                    await this.reloadMain();
+                } else if (target.area === 1) {
+                    await this.reloadDungeon();
+                } else {
+                    await this.reloadExtra();
+                }
+            }
+            const at = tileToMap(MAP_AREAS[target.area], target.x, target.z);
+            this.focusX = at.x;
+            this.focusZ = at.y;
+        }
+        this.redraw = true;
+    }
+
+    clearSearch(): void {
+        this.searchSpawns = [];
+        this.searchTarget = null;
+        this.redraw = true;
+    }
+
+    // custom: yellow rings on every spawn of the searched entry that is in the area being shown
+    drawSearchHighlights(left: number, top: number, right: number, bottom: number): void {
+        for (const s of this.searchSpawns) {
+            if (s.area !== this.mapArea) {
+                continue;
+            }
+            const at = tileToMap(MAP_AREAS[this.mapArea], s.x, s.z);
+            const screen = mapToScreen(at.x + 0.5, at.y - 0.5, left, top, right, bottom, this.sWid, this.sHei);
+            if (screen.x < -10 || screen.y < -10 || screen.x > this.sWid + 10 || screen.y > this.sHei + 10) {
+                continue;
+            }
+            const big: boolean = s === this.searchTarget;
+            Pix2D.fillCircle(screen.x, screen.y, big ? 11 : 8, 0x000000, 256);
+            Pix2D.fillCircle(screen.x, screen.y, big ? 9 : 6, 0xffff00, 256);
+            Pix2D.fillCircle(screen.x, screen.y, big ? 4 : 3, 0xff8800, 256);
+        }
     }
 
     // custom: white text with a black shadow so it reads on any ground colour
@@ -430,6 +508,7 @@ export class MapView extends GameShell {
             const right: number = this.focusX + ((this.sWid / this.zoom) | 0);
             const bottom: number = this.focusZ + ((this.sHei / this.zoom) | 0);
             this.renderWorldMap(left, top, right, bottom, 0, 0, this.sWid, this.sHei);
+            this.drawSearchHighlights(left, top, right, bottom);
             this.drawPlayerMarker(left, top, right, bottom);
 
             if (this.showOverview) {
