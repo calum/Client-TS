@@ -10,7 +10,7 @@ import { downloadUrl, sleep } from '#/util/JsUtil.js';
 import { canvas, saveDataURL } from '#/graphics/Canvas.js';
 import PixMap from '#/graphics/PixMap.js';
 import WorldMapFont from '#/mapview/WorldMapFont.js';
-import { nearestSpawn, searchIndex, spawnsOf, type IndexEntry, type SearchIndex, type SearchResult, type Spawn } from '#/mapview/MapSearch.js';
+import { orderSpawns, searchIndex, spawnsOf, stepSpawn, type IndexEntry, type SearchIndex, type SearchResult, type Spawn } from '#/mapview/MapSearch.js';
 import { MAP_AREAS, WORLD_MAP_CHANNEL, areaForTile, clampToScreen, mapToScreen, parsePlayerPos, shouldFollowArea, stepZoom, tileToMap, type PlayerPos } from '#/mapview/MapCoords.js';
 
 export class MapView extends GameShell {
@@ -193,6 +193,7 @@ export class MapView extends GameShell {
     private searchLoading: Promise<SearchIndex | null> | null = null;
     private searchSpawns: Spawn[] = [];
     private searchTarget: Spawn | null = null;
+    private searchOrder: Spawn[] = [];
 
     constructor() {
         super();
@@ -216,9 +217,9 @@ export class MapView extends GameShell {
         // custom: the production bundle mangles method names, so the page's search box talks to MapView through this fixed handle
         (globalThis as unknown as { worldMapSearch: unknown }).worldMapSearch = {
             query: (q: string): Promise<SearchResult[]> => this.searchQuery(q),
-            select: (e: IndexEntry): Promise<void> => this.selectSearch(e),
-            clear: (): void => this.clearSearch(),
-            area: (): number => this.mapArea
+            select: (e: IndexEntry): Promise<string> => this.selectSearch(e),
+            step: (d: number): Promise<string> => this.stepSearch(d),
+            clear: (): void => this.clearSearch()
         };
 
         this.run();
@@ -283,31 +284,42 @@ export class MapView extends GameShell {
     }
 
     // custom: highlight every spawn of the chosen entry and pan to the nearest one (switching map area if needed)
-    async selectSearch(entry: IndexEntry): Promise<void> {
-        const spawns: Spawn[] = spawnsOf(entry);
-        const target: Spawn | null = nearestSpawn(spawns, this.playerPos, this.mapArea);
-        this.searchSpawns = spawns;
+    async selectSearch(entry: IndexEntry): Promise<string> {
+        this.searchSpawns = spawnsOf(entry);
+        this.searchOrder = orderSpawns(this.searchSpawns, this.playerPos, this.mapArea);
+        this.searchTarget = null;
+        return this.stepSearch(1);
+    }
+
+    // custom: focus the next (1) or previous (-1) spawn of the selected entry, wrapping; returns "3 / 27 (dungeon)"
+    async stepSearch(direction: number): Promise<string> {
+        const target: Spawn | null = stepSpawn(this.searchOrder, this.searchTarget, direction);
         this.searchTarget = target;
-        if (target) {
-            if (target.area !== this.mapArea) {
-                if (target.area === 0) {
-                    await this.reloadMain();
-                } else if (target.area === 1) {
-                    await this.reloadDungeon();
-                } else {
-                    await this.reloadExtra();
-                }
-            }
-            const at = tileToMap(MAP_AREAS[target.area], target.x, target.z);
-            this.focusX = at.x;
-            this.focusZ = at.y;
+        if (!target) {
+            this.redraw = true;
+            return 'no spawns on the map';
         }
+        if (target.area !== this.mapArea) {
+            if (target.area === 0) {
+                await this.reloadMain();
+            } else if (target.area === 1) {
+                await this.reloadDungeon();
+            } else {
+                await this.reloadExtra();
+            }
+        }
+        const at = tileToMap(MAP_AREAS[target.area], target.x, target.z);
+        this.focusX = at.x;
+        this.focusZ = at.y;
         this.redraw = true;
+        const where: string = ['', ' (dungeon)', ' (extra area)'][target.area];
+        return `${this.searchOrder.indexOf(target) + 1} / ${this.searchOrder.length}${where}`;
     }
 
     clearSearch(): void {
         this.searchSpawns = [];
         this.searchTarget = null;
+        this.searchOrder = [];
         this.redraw = true;
     }
 

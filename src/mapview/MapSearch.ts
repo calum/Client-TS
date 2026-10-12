@@ -66,3 +66,26 @@ export function nearestSpawn(spawns: Spawn[], from: { x: number; z: number; leve
     }
     return best;
 }
+
+// The order Next/Previous walks through: the viewed area first, then the other areas by number; inside an
+// area nearest the player first (index order when there is no player position).
+export function orderSpawns(spawns: Spawn[], from: { x: number; z: number; level: number } | null, fromArea: number): Spawn[] {
+    const rank = (a: number): number => (a === fromArea ? -1 : a);
+    const dist = (s: Spawn): number => (from ? (s.x - from.x) ** 2 + (s.z - from.z) ** 2 : 0);
+    return spawns
+        .map((s, i) => ({ s, i }))
+        .sort((a, b) => rank(a.s.area) - rank(b.s.area) || dist(a.s) - dist(b.s) || a.i - b.i)
+        .map(e => e.s);
+}
+
+// The spawn after (direction > 0) or before the current one, wrapping around. With none selected: first or last.
+export function stepSpawn(ordered: Spawn[], current: Spawn | null, direction: number): Spawn | null {
+    if (ordered.length === 0) {
+        return null;
+    }
+    const at: number = current ? ordered.indexOf(current) : -1;
+    if (at === -1) {
+        return direction > 0 ? ordered[0] : ordered[ordered.length - 1];
+    }
+    return ordered[(at + (direction > 0 ? 1 : -1) + ordered.length) % ordered.length];
+}

@@ -1,7 +1,7 @@
 // Run with: bun test (in Client-TS). World map search (docs/design/map-search.md).
 import { expect, test } from 'bun:test';
 
-import { type IndexEntry, type SearchIndex, nearestSpawn, searchIndex, spawnsOf } from '#/mapview/MapSearch.js';
+import { type IndexEntry, type SearchIndex, nearestSpawn, orderSpawns, searchIndex, spawnsOf, stepSpawn } from '#/mapview/MapSearch.js';
 
 const index: SearchIndex = {
     v: 1,
@@ -61,4 +61,30 @@ test('nearestSpawn prefers the viewed area, then the closest tile', () => {
     expect(nearestSpawn(s, null, 0)).toEqual(s[0]);
     expect(nearestSpawn([s[2], s[0]], null, 0)).toEqual(s[0]);
     expect(nearestSpawn([s[2]], null, 0)).toEqual(s[2]);
+});
+
+const far = { x: 3100, z: 3100, level: 0, area: 0 };
+const near = { x: 3010, z: 3010, level: 0, area: 0 };
+const mid = { x: 3050, z: 3050, level: 0, area: 0 };
+const dungeonA = { x: 3068, z: 10256, level: 0, area: 1 };
+const dungeonB = { x: 2900, z: 9800, level: 0, area: 1 };
+
+test('orderSpawns lists the viewed area nearest first, then the other areas', () => {
+    const ordered = orderSpawns([dungeonA, far, dungeonB, near, mid], { x: 3000, z: 3000, level: 0 }, 0);
+    expect(ordered).toEqual([near, mid, far, dungeonB, dungeonA]);
+    // viewing the dungeon: dungeon spawns first
+    expect(orderSpawns([far, dungeonA], { x: 3000, z: 3000, level: 0 }, 1)).toEqual([dungeonA, far]);
+    // without a player position the index order is kept within an area
+    expect(orderSpawns([far, near], null, 0)).toEqual([far, near]);
+});
+
+test('stepSpawn moves to the next or previous spawn and wraps around', () => {
+    const list = [near, mid, far];
+    expect(stepSpawn(list, near, 1)).toBe(mid);
+    expect(stepSpawn(list, far, 1)).toBe(near);
+    expect(stepSpawn(list, near, -1)).toBe(far);
+    expect(stepSpawn(list, null, 1)).toBe(near);
+    expect(stepSpawn(list, null, -1)).toBe(far);
+    expect(stepSpawn([], null, 1)).toBeNull();
+    expect(stepSpawn([near], near, 1)).toBe(near);
 });
