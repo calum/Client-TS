@@ -14,7 +14,9 @@ test('loads /custom-sounds/relic_attune.<ext> for synth 912, trying wav then mp3
     const sounds = await loadCustomSounds(fake as unknown as typeof fetch);
     expect([...sounds.keys()]).toEqual([912]);
     expect([...sounds.get(912)!]).toEqual([1, 2, 3]);
-    expect(asked).toEqual(['/custom-sounds/relic_attune.wav', '/custom-sounds/relic_attune.mp3']);
+    // relic_attune is asked first (wav, then mp3, found); the Phoenix shout (913) is asked after it
+    expect(asked.slice(0, 2)).toEqual(['/custom-sounds/relic_attune.wav', '/custom-sounds/relic_attune.mp3']);
+    expect(asked.slice(2)).toEqual(['/custom-sounds/relic_phoenix.wav', '/custom-sounds/relic_phoenix.mp3', '/custom-sounds/relic_phoenix.ogg']);
 });
 
 test('no file means no override; an HTML fallback page or a network error is ignored', async () => {
@@ -24,4 +26,11 @@ test('no file means no override; an HTML fallback page or a network error is ign
         throw new Error('offline');
     };
     expect((await loadCustomSounds(down as unknown as typeof fetch)).size).toBe(0);
+});
+
+test('loads /custom-sounds/relic_phoenix.<ext> for synth 913 (Phoenix shout)', async () => {
+    const fake = async (url: string) => (url.endsWith('relic_phoenix.ogg') ? ok([9, 9], 'audio/ogg') : new Response('nope', { status: 404 }));
+    const sounds = await loadCustomSounds(fake as unknown as typeof fetch);
+    expect([...sounds.keys()]).toEqual([913]);
+    expect([...sounds.get(913)!]).toEqual([9, 9]);
 });

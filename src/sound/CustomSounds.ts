@@ -1,10 +1,11 @@
 // Recorded replacements for synth sounds. A file named after the sound in the server's public/custom-sounds/
 // folder (served at /custom-sounds/) plays instead of the built-in synth sound with that id.
-// docs/guide/relic-attune-sound.md
+// docs/guide/relic-attune-sound.md, docs/guide/relic-phoenix-shout.md
 
 /** Synth id -> file name (without extension). Add a line here to make another sound replaceable. */
 export const CUSTOM_SOUND_NAMES: Record<number, string> = {
-    912: 'relic_attune' // Content/pack/synth.pack, played by [proc,relic_attune] in mods/relics
+    912: 'relic_attune', // Content/pack/synth.pack, played by [proc,relic_attune] in mods/relics
+    913: 'relic_phoenix' // played by [queue,relic_phoenix_shout_q] in mods/relics (Phoenix relic)
 };
 
 /** Tried in this order; the browser decodes whichever it supports. */
