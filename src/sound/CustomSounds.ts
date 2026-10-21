@@ -5,7 +5,22 @@
 /** Synth id -> file name (without extension). Add a line here to make another sound replaceable. */
 export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     912: 'relic_attune', // Content/pack/synth.pack, played by [proc,relic_attune] in mods/relics
-    913: 'relic_phoenix' // played by [queue,relic_phoenix_shout_q] in mods/relics (Phoenix relic)
+    913: 'relic_phoenix', // played by [queue,relic_phoenix_shout_q] in mods/relics (Phoenix relic)
+    // Hollow Choir (mods/hollowchoir, scripts/hollow_choir/gen_sounds.py): generated sounds, ids 914-927 in Content/pack/synth.pack
+    914: 'hc_wake',
+    915: 'hc_toll_shout',
+    916: 'hc_toll_hit',
+    917: 'hc_dirge_shout',
+    918: 'hc_dirge_mist',
+    919: 'hc_dirge_hit',
+    920: 'hc_knell_shout',
+    921: 'hc_knell_orb',
+    922: 'hc_knell_hit',
+    923: 'hc_spent',
+    924: 'hc_bell_crack',
+    925: 'hc_stage',
+    926: 'hc_death',
+    927: 'hc_ambient'
 };
 
 /** Tried in this order; the browser decodes whichever it supports. */
