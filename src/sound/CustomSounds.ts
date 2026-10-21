@@ -44,6 +44,10 @@ export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     972: 'inf_nib_bite',
     973: 'inf_meleer_slash',
     974: 'inf_meleer_dig',
+    // Inferno stage 6 stand-ins (Zuk roar, Zuk hurt, shield break)
+    975: 'inf_zuk_roar',
+    976: 'inf_zuk_hurt',
+    977: 'inf_shield_break',
     // Thornmother (mods/thornmother, scripts/thornmother/gen_sounds.py)
     952: 'tm_wake',
     953: 'tm_seed_tell',
