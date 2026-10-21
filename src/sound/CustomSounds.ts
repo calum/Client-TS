@@ -20,7 +20,24 @@ export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     924: 'hc_bell_crack',
     925: 'hc_stage',
     926: 'hc_death',
-    927: 'hc_ambient'
+    927: 'hc_ambient',
+    // Skarn (mods/skarn, scripts/skarn/gen_sounds.py)
+    936: 'sk_wake',
+    937: 'sk_crawl',
+    938: 'sk_frost_tell',
+    939: 'sk_frost_hit',
+    940: 'sk_gaze_tell',
+    941: 'sk_gaze_hit',
+    942: 'sk_gaze_shatter',
+    943: 'sk_fang_tell',
+    944: 'sk_fang_hit',
+    945: 'sk_dazzle_on',
+    946: 'sk_dazzle_off',
+    947: 'sk_split',
+    948: 'sk_refreeze',
+    949: 'sk_death',
+    950: 'sk_hoar_gaze',
+    951: 'sk_rime_gaze'
 };
 
 /** Tried in this order; the browser decodes whichever it supports. */
