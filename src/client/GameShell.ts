@@ -460,6 +460,11 @@ export default abstract class GameShell {
             return;
         }
 
+        // custom: Ctrl/Cmd + F-key stays with the browser (Ctrl+F5 hard refresh)
+        if ((e.ctrlKey || e.metaKey) && keyCode.code >= 112 && keyCode.code <= 123) {
+            return;
+        }
+
         let ch: number = keyCode.ch;
 
         if (e.ctrlKey) {
@@ -470,7 +475,7 @@ export default abstract class GameShell {
             }
         }
 
-        if (ch < 30) {
+        if (ch < 30 && keyCode.code !== 27) { // custom: keep Esc (27) so it can close interfaces and select a tab (Keybinds.ts)
             ch = 0;
         }
 
@@ -520,6 +525,11 @@ export default abstract class GameShell {
             return;
         }
 
+        // custom: Ctrl/Cmd + F-key stays with the browser (Ctrl+F5 hard refresh)
+        if ((e.ctrlKey || e.metaKey) && keyCode.code >= 112 && keyCode.code <= 123) {
+            return;
+        }
+
         let ch: number = keyCode.ch;
 
         if (e.ctrlKey) {
@@ -530,7 +540,7 @@ export default abstract class GameShell {
             }
         }
 
-        if (ch < 30) {
+        if (ch < 30 && keyCode.code !== 27) { // custom: keep Esc (27) so it can close interfaces and select a tab (Keybinds.ts)
             ch = 0;
         }
 

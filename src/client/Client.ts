@@ -71,6 +71,7 @@ import WordFilter from '#/wordfilter/WordFilter.js';
 import WordPack from '#/wordfilter/WordPack.js';
 
 import { TOAST_DURATION_MS, drawToast, parseToastMessage } from '#/client/Toast.js';
+import { KEYBINDS_MARKER, TABS, defaultBindings, drawKeybinds, escapeAction, keyFromCh, loadBindings, panelHit, saveBindings, setBinding, tabForKey, type Bindings, type PanelState } from '#/client/Keybinds.js';
 import { CustomMusic, loadCustomMusic } from '#/sound/CustomMusic.js';
 import { loadCustomSounds } from '#/sound/CustomSounds.js';
 import JagFX from '#/sound/JagFX.js';
@@ -169,6 +170,8 @@ export class Client extends GameShell {
     private showFps: boolean = false;
     private toastText: string | null = null; // custom: task-complete toast (Toast.ts)
     private toastStart: number = 0;
+    private keybinds: Bindings = loadBindings(typeof localStorage === 'undefined' ? null : localStorage); // custom: side-tab hotkeys (Keybinds.ts)
+    private keybindsPanel: PanelState = { open: false, dropdown: -1 };
     private rebootTimer: number = 0;
 
     private hintType: number = 0;
@@ -2365,6 +2368,7 @@ export class Client extends GameShell {
         const checkClickInput = !this.isMobile || (this.isMobile && !MobileKeyboard.isWithinCanvasKeyboard(this.mouseClickX, this.mouseClickY));
 
         if (checkClickInput) {
+            this.keybindsClick();
             this.mouseLoop();
             this.minimapLoop();
             this.iconLoop();
@@ -2986,6 +2990,11 @@ export class Client extends GameShell {
                         return;
                     }
 
+                    // custom: side-tab hotkeys and Esc (Keybinds.ts)
+                    if (this.handleHotkey(key)) {
+                        continue;
+                    }
+
                     if (this.mainModalId !== -1 && this.mainModalId === this.reportAbuseComId) {
                         if (key === 8 && this.reportAbuseInput.length > 0) {
                             this.reportAbuseInput = this.reportAbuseInput.substring(0, this.reportAbuseInput.length - 1);
@@ -3129,6 +3138,9 @@ export class Client extends GameShell {
                                     World.setViewRadius(Client.clampViewRadius(radius));
                                     this.resetVisCalc();
                                 }
+                            } else if (this.chatInput === '::keybinds') {
+                                // custom: open the hotkey remap panel (Keybinds.ts)
+                                this.keybindsPanel = { open: true, dropdown: -1 };
                             } else if (this.chatInput === '::map') {
                                 // custom: open the world map in its own window (docs/design/world-map.md)
                                 this.openWorldMap();
@@ -4951,6 +4963,10 @@ export class Client extends GameShell {
             }
         }
 
+        if (this.keybindsPanel.open) {
+            drawKeybinds(this.keybindsPanel, this.keybinds, this.mouseX - 4, this.mouseY - 4, this.b12, this.p12);
+        }
+
         // custom: taken from later client
         if (this.showFps) {
             const x: number = 507;
@@ -6554,6 +6570,8 @@ export class Client extends GameShell {
                     if (!ignored && this.chatDisabled === 0) {
                         this.addChat(8, 'wishes to duel with you.', player);
                     }
+                } else if (message === KEYBINDS_MARKER) {
+                    this.keybindsPanel = { open: true, dropdown: -1 };
                 } else if (parseToastMessage(message) !== null) {
                     this.toastText = parseToastMessage(message);
                     this.toastStart = performance.now();
@@ -11046,6 +11064,84 @@ export class Client extends GameShell {
             } else {
                 com.text = "Do this from the 'account management' area on our front webpage";
             }
+        }
+    }
+
+    /** custom: F-keys select the bound side tab; Esc closes the open panel, input or interface, else selects its bound tab. Returns true when the key was used. */
+    private handleHotkey(ch: number): boolean {
+        const name: string | null = keyFromCh(ch);
+        if (name === null || !this.ingame) {
+            return false;
+        }
+
+        if (name === 'ESC') {
+            const action = escapeAction({
+                keybindsOpen: this.keybindsPanel.open,
+                textInputOpen: this.dialogInputOpen || this.socialInputOpen || (this.chatModalId === -1 && this.chatInput.length > 0),
+                modalOpen: this.mainModalId !== -1 || this.sideModalId !== -1 || this.chatModalId !== -1
+            });
+            if (action === 'close-keybinds') {
+                this.keybindsPanel = { open: false, dropdown: -1 };
+            } else if (action === 'close-text-input') {
+                this.dialogInputOpen = false;
+                this.socialInputOpen = false;
+                this.chatInput = '';
+                this.redrawChat = true;
+            } else if (action === 'close-modal') {
+                this.closeModal();
+            } else {
+                this.selectTabByKey(name);
+            }
+            return true;
+        }
+
+        return this.selectTabByKey(name);
+    }
+
+    private selectTabByKey(name: string): boolean {
+        const tab: number | null = tabForKey(this.keybinds, name);
+        if (tab === null) {
+            return false;
+        }
+        const icon: number = TABS[tab].icon;
+        if (this.sideIcon[icon] === -1) {
+            return true;
+        }
+        if (this.sideModalId !== -1) {
+            this.closeModal();
+        }
+        this.activeIcon = icon;
+        this.redrawSide = true;
+        this.redrawIcons = true;
+        return true;
+    }
+
+    /** custom: click handling for the keybinds panel; clicks anywhere in the game view are consumed while it is open. */
+    private keybindsClick(): void {
+        if (!this.keybindsPanel.open || this.mouseClickButton === 0) {
+            return;
+        }
+        const x: number = this.mouseClickX - 4;
+        const y: number = this.mouseClickY - 4;
+        if (x < 0 || y < 0 || x >= 512 || y >= 334) {
+            return;
+        }
+        this.mouseClickButton = 0;
+        const hit = panelHit(this.keybindsPanel, x, y);
+        if (hit.kind === 'close') {
+            this.keybindsPanel = { open: false, dropdown: -1 };
+        } else if (hit.kind === 'restore') {
+            this.keybinds = defaultBindings();
+            saveBindings(typeof localStorage === 'undefined' ? null : localStorage, this.keybinds);
+            this.keybindsPanel.dropdown = -1;
+        } else if (hit.kind === 'row') {
+            this.keybindsPanel.dropdown = this.keybindsPanel.dropdown === hit.row ? -1 : hit.row;
+        } else if (hit.kind === 'pick') {
+            this.keybinds = setBinding(this.keybinds, hit.row, hit.key);
+            saveBindings(typeof localStorage === 'undefined' ? null : localStorage, this.keybinds);
+            this.keybindsPanel.dropdown = -1;
+        } else {
+            this.keybindsPanel.dropdown = -1;
         }
     }
 
