@@ -71,6 +71,7 @@ import WordFilter from '#/wordfilter/WordFilter.js';
 import WordPack from '#/wordfilter/WordPack.js';
 
 import { TOAST_DURATION_MS, drawToast, parseToastMessage } from '#/client/Toast.js';
+import { demoteAttack, loadLeftClickAttack, saveLeftClickAttack } from '#/client/LeftClick.js';
 import { KEYBINDS_MARKER, TABS, defaultBindings, drawKeybinds, escapeAction, keyFromCh, loadBindings, panelHit, saveBindings, setBinding, tabForKey, type Bindings, type PanelState } from '#/client/Keybinds.js';
 import { CustomMusic, loadCustomMusic } from '#/sound/CustomMusic.js';
 import { loadCustomSounds } from '#/sound/CustomSounds.js';
@@ -171,6 +172,7 @@ export class Client extends GameShell {
     private toastText: string | null = null; // custom: task-complete toast (Toast.ts)
     private toastStart: number = 0;
     private keybinds: Bindings = loadBindings(typeof localStorage === 'undefined' ? null : localStorage); // custom: side-tab hotkeys (Keybinds.ts)
+    private leftClickAttack: boolean = loadLeftClickAttack(typeof localStorage === 'undefined' ? null : localStorage); // custom: LeftClick.ts
     private keybindsPanel: PanelState = { open: false, dropdown: -1 };
     private rebootTimer: number = 0;
 
@@ -3141,6 +3143,11 @@ export class Client extends GameShell {
                             } else if (this.chatInput === '::keybinds') {
                                 // custom: open the hotkey remap panel (Keybinds.ts)
                                 this.keybindsPanel = { open: true, dropdown: -1 };
+                            } else if (this.chatInput === '::leftattack' || this.chatInput === '::leftattack on' || this.chatInput === '::leftattack off') {
+                                // custom: toggle left-click attack on higher-level NPCs (LeftClick.ts)
+                                this.leftClickAttack = this.chatInput === '::leftattack' ? !this.leftClickAttack : this.chatInput.endsWith('on');
+                                saveLeftClickAttack(typeof localStorage === 'undefined' ? null : localStorage, this.leftClickAttack);
+                                this.addChat(0, 'Left-click attack on higher-level NPCs: ' + (this.leftClickAttack ? 'ON' : 'OFF') + '.', '');
                             } else if (this.chatInput === '::map') {
                                 // custom: open the world map in its own window (docs/design/world-map.md)
                                 this.openWorldMap();
@@ -9646,7 +9653,7 @@ export class Client extends GameShell {
                     }
 
                     let priority: number = 0;
-                    if (this.localPlayer && npc.vislevel > this.localPlayer.combatLevel) {
+                    if (this.localPlayer && demoteAttack(this.leftClickAttack, npc.vislevel, this.localPlayer.combatLevel)) {
                         priority = MiniMenuAction._PRIORITY;
                     }
 
