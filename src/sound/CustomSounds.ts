@@ -37,7 +37,24 @@ export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     948: 'sk_refreeze',
     949: 'sk_death',
     950: 'sk_hoar_gaze',
-    951: 'sk_rime_gaze'
+    951: 'sk_rime_gaze',
+    // Thornmother (mods/thornmother, scripts/thornmother/gen_sounds.py)
+    952: 'tm_wake',
+    953: 'tm_seed_tell',
+    954: 'tm_bud_ripe',
+    955: 'tm_burst',
+    956: 'tm_barbs_tell',
+    957: 'tm_barbs_hit',
+    958: 'tm_spore_tell',
+    959: 'tm_spore_hit',
+    960: 'tm_lunge_tell',
+    961: 'tm_lunge_hit',
+    962: 'tm_burrow',
+    963: 'tm_surface',
+    964: 'tm_wilt_on',
+    965: 'tm_frenzy',
+    966: 'tm_bloom',
+    967: 'tm_death'
 };
 
 /** Tried in this order; the browser decodes whichever it supports. */
