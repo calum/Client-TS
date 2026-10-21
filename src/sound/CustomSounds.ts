@@ -38,6 +38,10 @@ export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     949: 'sk_death',
     950: 'sk_hoar_gaze',
     951: 'sk_rime_gaze',
+    // Inferno stage 3 stand-ins (mods/inferno, scripts/inferno/gen_sounds.py)
+    970: 'inf_blob_cast',
+    971: 'inf_bat_screech',
+    972: 'inf_nib_bite',
     // Thornmother (mods/thornmother, scripts/thornmother/gen_sounds.py)
     952: 'tm_wake',
     953: 'tm_seed_tell',
