@@ -111,9 +111,10 @@ export default class Model extends ModelSource {
     static tmpDepthFaceCount: Int32Array = new Int32Array(1500);
     static tmpDepthFaces: Int32Array[] = new Int32Array2d(1500, 512);
     static tmpPriorityFaceCount: Int32Array = new Int32Array(12);
-    static tmpPriorityFaces: Int32Array[] = new Int32Array2d(12, 2000);
-    static tmpPriority10FaceDepth: Int32Array = new Int32Array(2000);
-    static tmpPriority11FaceDepth: Int32Array = new Int32Array(2000);
+    // custom (Jad port): upstream 2000 faces per priority; the OSRS JalTok-Jad has 2502 faces on one priority
+    static tmpPriorityFaces: Int32Array[] = new Int32Array2d(12, 4096);
+    static tmpPriority10FaceDepth: Int32Array = new Int32Array(4096);
+    static tmpPriority11FaceDepth: Int32Array = new Int32Array(4096);
     static tmpPriorityDepthSum: Int32Array = new Int32Array(12);
 
     static clippedX: Int32Array = new Int32Array(10);
