@@ -42,6 +42,8 @@ export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     970: 'inf_blob_cast',
     971: 'inf_bat_screech',
     972: 'inf_nib_bite',
+    973: 'inf_meleer_slash',
+    974: 'inf_meleer_dig',
     // Thornmother (mods/thornmother, scripts/thornmother/gen_sounds.py)
     952: 'tm_wake',
     953: 'tm_seed_tell',
