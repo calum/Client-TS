@@ -48,6 +48,10 @@ export const CUSTOM_SOUND_NAMES: Record<number, string> = {
     975: 'inf_zuk_roar',
     976: 'inf_zuk_hurt',
     977: 'inf_shield_break',
+    // Inferno stage 7 stand-ins (pillar collapse, mager resurrection, wave horn)
+    978: 'inf_pillar_collapse',
+    979: 'inf_mager_revive',
+    980: 'inf_wave_horn',
     // Thornmother (mods/thornmother, scripts/thornmother/gen_sounds.py)
     952: 'tm_wake',
     953: 'tm_seed_tell',
